@@ -1,4 +1,9 @@
-use std::{io, io::ErrorKind, process::exit};
+use std::{
+    io,
+    io::ErrorKind,
+    process::exit,
+    time::{Duration, Instant},
+};
 
 use actix::{Actor, Addr, Context, Handler, Message, StreamHandler};
 use actix_broker::{BrokerIssue, BrokerSubscribe, SystemBroker};
@@ -40,6 +45,43 @@ async fn sensor_stream(device_actor_addr: Addr<DeviceActor>, sensor: Sensor) {
                 exit(1);
             }
         }
+    }
+}
+
+// demo buzzer stream: pressed once every 30 seconds
+async fn demo_buzzer_stream(device_actor_addr: Addr<DeviceActor>) {
+    loop {
+        tokio::time::delay_for(Duration::from_secs(30)).await;
+
+        device_actor_addr.do_send(BuzzerMessage {
+            state: BuzzerState::Pressed,
+        });
+        tokio::time::delay_for(Duration::from_millis(200)).await;
+        device_actor_addr.do_send(BuzzerMessage {
+            state: BuzzerState::Released,
+        });
+    }
+}
+
+// demo sensor stream: simulate a sinus wave
+async fn demo_sensor_stream(device_actor_addr: Addr<DeviceActor>) {
+    let start_ts = Instant::now();
+
+    let duration = 10.0;
+
+    loop {
+        tokio::time::delay_for(Duration::from_millis(17)).await;
+
+        let now = Instant::now().duration_since(start_ts);
+
+        let t = now.as_secs_f64();
+
+        let distance = 300.0 + 250.0 * f64::sin(t * 4.0 / duration);
+        let distance = distance as u32;
+
+        device_actor_addr.do_send(SensorMessage {
+            sensor_data: SensorData { distance },
+        });
     }
 }
 
@@ -129,39 +171,46 @@ async fn main() -> std::io::Result<()> {
     }
     env_logger::init();
 
-    let ports = serialport::available_ports().unwrap();
-
-    let buzzer_port = ports.iter().find_map(|p| match &p.port_type {
-        UsbPort(u) if u.vid == BUZZER_VID && u.pid == BUZZER_PID => Some(p.port_name.clone()),
-        _ => None,
-    });
-
-    let sensor_port = ports.iter().find_map(|p| match &p.port_type {
-        UsbPort(u) if u.vid == SENSOR_VID && u.pid == SENSOR_PID => Some(p.port_name.clone()),
-        _ => None,
-    });
-
     let device_actor_addr = DeviceActor.start();
 
-    if let Some(buzzer_port) = buzzer_port.as_ref() {
-        log::info!("[buzzer]: Port {}", buzzer_port);
-        let b = buzzer::open(buzzer_port)?;
+    let demo_mode = std::env::args().any(|arg| arg == "--demo");
 
-        tokio::spawn(buzzer_stream(device_actor_addr.clone(), b));
-    }
+    if demo_mode {
+        tokio::spawn(demo_buzzer_stream(device_actor_addr.clone()));
+        tokio::spawn(demo_sensor_stream(device_actor_addr.clone()));
+    } else {
+        let ports = serialport::available_ports().unwrap();
 
-    if let Some(sensor_port) = sensor_port.as_ref() {
-        log::info!("[sensor]: Port {}", sensor_port);
-        let s = sensor::open(sensor_port)?;
+        let buzzer_port = ports.iter().find_map(|p| match &p.port_type {
+            UsbPort(u) if u.vid == BUZZER_VID && u.pid == BUZZER_PID => Some(p.port_name.clone()),
+            _ => None,
+        });
 
-        tokio::spawn(sensor_stream(device_actor_addr, s));
-    }
+        let sensor_port = ports.iter().find_map(|p| match &p.port_type {
+            UsbPort(u) if u.vid == SENSOR_VID && u.pid == SENSOR_PID => Some(p.port_name.clone()),
+            _ => None,
+        });
 
-    if buzzer_port.is_none() && sensor_port.is_none() {
-        return Err(io::Error::new(
-            ErrorKind::NotFound,
-            "Neither sensor nor buzzer found",
-        ));
+        if let Some(buzzer_port) = buzzer_port.as_ref() {
+            log::info!("[buzzer]: Port {}", buzzer_port);
+            let b = buzzer::open(buzzer_port)?;
+
+            tokio::spawn(buzzer_stream(device_actor_addr.clone(), b));
+        }
+
+        if let Some(sensor_port) = sensor_port.as_ref() {
+            log::info!("[sensor]: Port {}", sensor_port);
+            let s = sensor::open(sensor_port)?;
+
+            tokio::spawn(sensor_stream(device_actor_addr, s));
+        }
+
+        if buzzer_port.is_none() && sensor_port.is_none() {
+            return Err(io::Error::new(
+                ErrorKind::NotFound,
+                "Neither sensor nor buzzer found",
+            ));
+        }
     }
 
     HttpServer::new(|| {
