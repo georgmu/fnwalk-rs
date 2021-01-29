@@ -10,13 +10,16 @@ use actix_broker::{BrokerIssue, BrokerSubscribe, SystemBroker};
 use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
 
+use serde_json::json;
+
+use futures_util::stream::StreamExt;
+
+use serialport::SerialPortType::UsbPort;
+
 use fnwalk::{
     buzzer::{self, Buzzer, BuzzerState, BUZZER_PID, BUZZER_VID},
     sensor::{self, Sensor, SensorData, SENSOR_PID, SENSOR_VID},
 };
-use futures_util::stream::StreamExt;
-
-use serialport::SerialPortType::UsbPort;
 
 type BrokerType = SystemBroker;
 
@@ -141,7 +144,12 @@ impl Handler<BuzzerMessage> for WsSession {
     type Result = ();
 
     fn handle(&mut self, item: BuzzerMessage, ctx: &mut Self::Context) {
-        ctx.text(item.state.to_string());
+        let msg = json!({
+            "type": "buzzer",
+            "pressed": matches!(item.state, BuzzerState::Pressed)
+        });
+
+        ctx.text(msg.to_string());
     }
 }
 
@@ -149,7 +157,12 @@ impl Handler<SensorMessage> for WsSession {
     type Result = ();
 
     fn handle(&mut self, item: SensorMessage, ctx: &mut Self::Context) {
-        ctx.text(item.sensor_data.to_string());
+        let msg = json!({
+            "type": "sensor",
+            "distance": item.sensor_data.distance
+        });
+
+        ctx.text(msg.to_string());
     }
 }
 

@@ -706,6 +706,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "log",
+ "serde_json",
  "serialport",
  "tokio",
  "tokio-serial",

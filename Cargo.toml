@@ -28,3 +28,5 @@ actix-web-actors = "3"
 actix-broker = "*"
 
 async-stream = "*"
+
+serde_json = "*"
