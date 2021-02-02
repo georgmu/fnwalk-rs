@@ -54,7 +54,7 @@ async fn sensor_stream(device_actor_addr: Addr<DeviceActor>, sensor: Sensor) {
 // demo buzzer stream: pressed once every 30 seconds
 async fn demo_buzzer_stream(device_actor_addr: Addr<DeviceActor>) {
     loop {
-        tokio::time::delay_for(Duration::from_secs(30)).await;
+        tokio::time::delay_for(Duration::from_secs(5)).await;
 
         device_actor_addr.do_send(BuzzerMessage {
             state: BuzzerState::Pressed,
