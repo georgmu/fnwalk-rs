@@ -2,7 +2,7 @@ use std::{
     io,
     io::ErrorKind,
     process::exit,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use actix::{Actor, Addr, Context, Handler, Message, StreamHandler};
@@ -144,8 +144,14 @@ impl Handler<BuzzerMessage> for WsSession {
     type Result = ();
 
     fn handle(&mut self, item: BuzzerMessage, ctx: &mut Self::Context) {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
         let msg = json!({
             "type": "buzzer",
+            "ts": ts,
             "pressed": matches!(item.state, BuzzerState::Pressed)
         });
 
@@ -157,8 +163,14 @@ impl Handler<SensorMessage> for WsSession {
     type Result = ();
 
     fn handle(&mut self, item: SensorMessage, ctx: &mut Self::Context) {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
         let msg = json!({
             "type": "sensor",
+            "ts": ts,
             "distance": item.sensor_data.distance
         });
 
