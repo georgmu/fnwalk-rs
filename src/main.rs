@@ -199,10 +199,16 @@ async fn main() -> std::io::Result<()> {
     let device_actor_addr = DeviceActor.start();
 
     let demo_mode = std::env::args().any(|arg| arg == "--demo");
+    let demo_buzzer = demo_mode || std::env::args().any(|arg| arg == "--demo-buzzer");
+    let demo_sensor = demo_mode || std::env::args().any(|arg| arg == "--demo-sensor");
 
-    if demo_mode {
-        tokio::spawn(demo_buzzer_stream(device_actor_addr.clone()));
-        tokio::spawn(demo_sensor_stream(device_actor_addr.clone()));
+    if demo_buzzer || demo_sensor {
+        if demo_buzzer {
+            tokio::spawn(demo_buzzer_stream(device_actor_addr.clone()));
+        }
+        if demo_sensor {
+            tokio::spawn(demo_sensor_stream(device_actor_addr.clone()));
+        }
     } else {
         let ports = serialport::available_ports().unwrap();
 
