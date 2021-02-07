@@ -7,7 +7,10 @@ use std::{
 
 use actix::{Actor, Addr, Context, Handler, Message, StreamHandler};
 use actix_broker::{BrokerIssue, BrokerSubscribe, SystemBroker};
-use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{
+    dev::{ServiceRequest, ServiceResponse},
+    middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer,
+};
 use actix_web_actors::ws;
 
 use serde_json::json;
@@ -247,7 +250,22 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .wrap(middleware::Logger::default())
-            .service(web::resource("/api/ws").route(web::get().to(ws_handler)))
+            .service(
+                web::scope("/api").service(web::resource("/ws").route(web::get().to(ws_handler))),
+            )
+            .service(
+                actix_files::Files::new("", "./web/")
+                    .index_file("index.html")
+                    .default_handler(|req: ServiceRequest| {
+                        let (http_req, _payload) = req.into_parts();
+
+                        async {
+                            let response = actix_files::NamedFile::open("./web/index.html")?
+                                .into_response(&http_req)?;
+                            Ok(ServiceResponse::new(http_req, response))
+                        }
+                    }),
+            )
     })
     .bind("127.0.0.1:8050")?
     .run()

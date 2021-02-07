@@ -22,6 +22,7 @@ tokio-serial = "*"
 serialport = "*"
 
 actix = "*"
+actix-files = "*"
 actix-web = "3"
 actix-web-actors = "3"
 
