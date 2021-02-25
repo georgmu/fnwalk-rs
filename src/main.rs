@@ -251,10 +251,11 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(middleware::Logger::default())
             .service(
-                web::scope("/api").service(web::resource("/ws").route(web::get().to(ws_handler))),
+                web::scope("/fnwalk/api")
+                    .service(web::resource("/ws").route(web::get().to(ws_handler))),
             )
             .service(
-                actix_files::Files::new("", "./web/")
+                actix_files::Files::new("/fnwalk", "./web")
                     .index_file("index.html")
                     .default_handler(|req: ServiceRequest| {
                         let (http_req, _payload) = req.into_parts();
@@ -266,6 +267,11 @@ async fn main() -> std::io::Result<()> {
                         }
                     }),
             )
+            .service(web::resource("/").route(web::get().to(|| {
+                HttpResponse::Found()
+                    .header("Location", "/fnwalk/")
+                    .finish()
+            })))
     })
     .bind("127.0.0.1:8050")?
     .run()
