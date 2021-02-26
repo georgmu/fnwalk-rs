@@ -1,7 +1,5 @@
 use std::{
     io,
-    io::ErrorKind,
-    process::exit,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -20,38 +18,42 @@ use futures_util::stream::StreamExt;
 use serialport::SerialPortType::UsbPort;
 
 use fnwalk::{
-    buzzer::{self, Buzzer, BuzzerState, BUZZER_PID, BUZZER_VID},
-    sensor::{self, Sensor, SensorData, SENSOR_PID, SENSOR_VID},
+    buzzer::{self, BuzzerState, BUZZER_PID, BUZZER_VID},
+    sensor::{self, SensorData, SENSOR_PID, SENSOR_VID},
 };
 
 type BrokerType = SystemBroker;
 
-async fn buzzer_stream(device_actor_addr: Addr<DeviceActor>, buzzer: Buzzer) {
+async fn buzzer_stream(device_actor_addr: Addr<DeviceActor>, buzzer_port: &str) -> io::Result<()> {
+    let buzzer = buzzer::open(buzzer_port)?;
     let mut s = buzzer.into_stream();
 
     while let Some(state) = s.next().await {
         match state {
             Ok(state) => device_actor_addr.do_send(BuzzerMessage { state }),
             Err(err) => {
-                println!("[buzzer] Error: {:?}", err);
-                exit(1);
+                return Err(err);
             }
         }
     }
+
+    Ok(())
 }
 
-async fn sensor_stream(device_actor_addr: Addr<DeviceActor>, sensor: Sensor) {
+async fn sensor_stream(device_actor_addr: Addr<DeviceActor>, sensor_port: &str) -> io::Result<()> {
+    let sensor = sensor::open(sensor_port)?;
     let mut s = sensor.into_stream();
 
     while let Some(state) = s.next().await {
         match state {
             Ok(sensor_data) => device_actor_addr.do_send(SensorMessage { sensor_data }),
             Err(err) => {
-                println!("[buzzer] Error: {:?}", err);
-                exit(1);
+                return Err(err);
             }
         }
     }
+
+    Ok(())
 }
 
 // demo buzzer stream: pressed once every 30 seconds
@@ -192,6 +194,59 @@ async fn ws_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpRespon
     ws::start(WsSession, &req, stream)
 }
 
+async fn wait_for_serial_device(vid: u16, pid: u16) -> String {
+    loop {
+        let ports = serialport::available_ports().unwrap();
+
+        let buzzer_port = ports.iter().find_map(|p| match &p.port_type {
+            UsbPort(u) if u.vid == vid && u.pid == pid => Some(p.port_name.clone()),
+            _ => None,
+        });
+
+        match buzzer_port {
+            Some(buzzer_port) => {
+                return buzzer_port;
+            }
+            None => {
+                log::trace!("No serial device found with {:04x}:{:04x}", vid, pid);
+                tokio::time::delay_for(Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn buzzer_loop(device_actor_addr: Addr<DeviceActor>) -> io::Result<()> {
+    loop {
+        log::info!("[buzzer]: Searching for device");
+        let buzzer_port = wait_for_serial_device(BUZZER_VID, BUZZER_PID).await;
+        log::info!("[buzzer]: detected at port {}", buzzer_port);
+
+        let stream_result = buzzer_stream(device_actor_addr.clone(), &buzzer_port).await;
+        match stream_result {
+            Err(err) => log::error!("[buzzer]: stream error: {}", err.to_string()),
+            Ok(()) => log::info!("[buzzer]: stream ended"),
+        }
+
+        tokio::time::delay_for(Duration::from_secs(1)).await;
+    }
+}
+
+async fn sensor_loop(device_actor_addr: Addr<DeviceActor>) -> io::Result<()> {
+    loop {
+        log::info!("[sensor]: Searching for device");
+        let sensor_port = wait_for_serial_device(SENSOR_VID, SENSOR_PID).await;
+        log::info!("[sensor]: detected at port {}", sensor_port);
+
+        let stream_result = sensor_stream(device_actor_addr.clone(), &sensor_port).await;
+        match stream_result {
+            Err(err) => log::error!("[sensor]: stream error: {}", err.to_string()),
+            Ok(()) => log::info!("[sensor]: stream ended"),
+        }
+
+        tokio::time::delay_for(Duration::from_secs(1)).await;
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     if std::env::var("RUST_LOG").is_err() {
@@ -205,46 +260,16 @@ async fn main() -> std::io::Result<()> {
     let demo_buzzer = demo_mode || std::env::args().any(|arg| arg == "--demo-buzzer");
     let demo_sensor = demo_mode || std::env::args().any(|arg| arg == "--demo-sensor");
 
-    if demo_buzzer || demo_sensor {
-        if demo_buzzer {
-            tokio::spawn(demo_buzzer_stream(device_actor_addr.clone()));
-        }
-        if demo_sensor {
-            tokio::spawn(demo_sensor_stream(device_actor_addr.clone()));
-        }
+    if demo_buzzer {
+        tokio::spawn(demo_buzzer_stream(device_actor_addr.clone()));
     } else {
-        let ports = serialport::available_ports().unwrap();
+        tokio::spawn(buzzer_loop(device_actor_addr.clone()));
+    }
 
-        let buzzer_port = ports.iter().find_map(|p| match &p.port_type {
-            UsbPort(u) if u.vid == BUZZER_VID && u.pid == BUZZER_PID => Some(p.port_name.clone()),
-            _ => None,
-        });
-
-        let sensor_port = ports.iter().find_map(|p| match &p.port_type {
-            UsbPort(u) if u.vid == SENSOR_VID && u.pid == SENSOR_PID => Some(p.port_name.clone()),
-            _ => None,
-        });
-
-        if let Some(buzzer_port) = buzzer_port.as_ref() {
-            log::info!("[buzzer]: Port {}", buzzer_port);
-            let b = buzzer::open(buzzer_port)?;
-
-            tokio::spawn(buzzer_stream(device_actor_addr.clone(), b));
-        }
-
-        if let Some(sensor_port) = sensor_port.as_ref() {
-            log::info!("[sensor]: Port {}", sensor_port);
-            let s = sensor::open(sensor_port)?;
-
-            tokio::spawn(sensor_stream(device_actor_addr, s));
-        }
-
-        if buzzer_port.is_none() && sensor_port.is_none() {
-            return Err(io::Error::new(
-                ErrorKind::NotFound,
-                "Neither sensor nor buzzer found",
-            ));
-        }
+    if demo_sensor {
+        tokio::spawn(demo_sensor_stream(device_actor_addr.clone()));
+    } else {
+        tokio::spawn(sensor_loop(device_actor_addr.clone()));
     }
 
     HttpServer::new(|| {
