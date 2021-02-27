@@ -60,14 +60,19 @@ impl Decoder for SensorIO {
         let newline = src.as_ref().iter().position(|b| *b == b'\r');
         if let Some(n) = newline {
             let line = src.split_to(n);
+            src.clear();
 
-            log::trace!("[sensor data] raw: {:?}", line);
+            log::trace!("[sensor data]: raw: {:?}", line);
+
+            if n < 14 {
+                log::trace!("[sensor data]: short read");
+                return Ok(None);
+            }
 
             let line = std::str::from_utf8(&line)
                 .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?
                 .trim();
 
-            src.clear();
             let time1: u32 = line[0..5]
                 .parse()
                 .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
