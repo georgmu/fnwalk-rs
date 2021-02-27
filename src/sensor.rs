@@ -120,9 +120,23 @@ impl Sensor {
         Box::pin(try_stream! {
 
             loop {
-                if let Some(raw_sensor_data) = framed.next().await {
-                    let raw_sensor_data = raw_sensor_data?;
-                    yield raw_sensor_data;
+
+                let read_response = tokio::time::timeout(std::time::Duration::from_secs(1), framed.next()).await;
+                match read_response {
+                    Err(_) => {
+                        println!("Read timed out");
+                        log::error!("[sensor]: read timed out");
+                        return;
+                    },
+                    Ok(response) => {
+                        if let Some(raw_sensor_data) = response {
+                            let raw_sensor_data = raw_sensor_data?;
+                            yield raw_sensor_data;
+                        } else {
+                            log::trace!("[sensor]: stream ended");
+                            return;
+                        }
+                    }
                 }
             }
         })

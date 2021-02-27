@@ -75,11 +75,20 @@ impl Buzzer {
             let mut old_state = BuzzerState::Released;
             loop {
                 framed.send("@00P0?".into()).await?;
-                if let Some(new_state) = framed.next().await {
-                    let new_state = new_state?;
-                    if old_state != new_state {
-                        old_state = new_state;
-                        yield new_state;
+                let read_response = tokio::time::timeout(std::time::Duration::from_secs(2), framed.next()).await;
+                match read_response {
+                    Err(_) => {
+                        println!("Read timed out");
+                        log::error!("[buzzer]: read timed out");
+                    },
+                    Ok(response) => {
+                        if let Some(new_state) = response {
+                            let new_state = new_state?;
+                            if old_state != new_state {
+                                old_state = new_state;
+                                yield new_state;
+                            }
+                        }
                     }
                 }
 
