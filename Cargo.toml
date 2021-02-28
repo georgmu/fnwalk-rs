@@ -23,7 +23,7 @@ futures-core = "*"
 tokio = { version = "0.2.0", features = ["macros", "time"], default-features = false }
 tokio-util = { version = "0.2.0", features = ["codec"], default-features = false }
 tokio-serial = { version = "*", default-features = false }
-serialport = { version = "*", default-features = false }
+serialport = { version = "3.3.0", default-features = false }
 
 actix = "*"
 actix-files = "*"

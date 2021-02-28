@@ -743,7 +743,7 @@ dependencies = [
  "futures-util",
  "log",
  "serde_json",
- "serialport 4.0.0",
+ "serialport",
  "tokio",
  "tokio-serial",
  "tokio-util 0.2.0",
@@ -1227,7 +1227,7 @@ dependencies = [
  "mio",
  "mio-named-pipes",
  "nix 0.17.0",
- "serialport 3.3.0",
+ "serialport",
  "winapi 0.3.9",
 ]
 
@@ -1280,19 +1280,6 @@ name = "nix"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c722bee1037d430d0f8e687bbdbf222f27cc6e4e68d5caf630857bb2b6dbdce"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 0.1.10",
- "libc",
- "void",
-]
-
-[[package]]
-name = "nix"
-version = "0.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd0eaf8df8bab402257e0a5c17a254e4cc1f72a93588a1ddfb5d356c801aa7cb"
 dependencies = [
  "bitflags",
  "cc",
@@ -1665,23 +1652,6 @@ dependencies = [
  "libudev",
  "mach 0.2.3",
  "nix 0.14.1",
- "regex",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "serialport"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22f37409d980045734250d679750bdf11bd875fec5bb5417dd21bb75d04d31a1"
-dependencies = [
- "CoreFoundation-sys",
- "IOKit-sys",
- "bitflags",
- "cfg-if 0.1.10",
- "libudev",
- "mach 0.2.3",
- "nix 0.16.1",
  "regex",
  "winapi 0.3.9",
 ]
