@@ -6,6 +6,10 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["libudev"]
+libudev = ["tokio-serial/libudev", "serialport/libudev"]
+
 [dependencies]
 env_logger = "*"
 log = "*"
@@ -18,8 +22,8 @@ futures-core = "*"
 
 tokio = { version = "0.2.0", features = ["macros", "time"], default-features = false }
 tokio-util = { version = "0.2.0", features = ["codec"], default-features = false }
-tokio-serial = "*"
-serialport = "*"
+tokio-serial = { version = "*", default-features = false }
+serialport = { version = "*", default-features = false }
 
 actix = "*"
 actix-files = "*"
