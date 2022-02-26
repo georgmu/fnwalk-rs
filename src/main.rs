@@ -56,15 +56,15 @@ async fn sensor_stream(device_actor_addr: Addr<DeviceActor>, sensor_port: &str) 
     Ok(())
 }
 
-// demo buzzer stream: pressed once every 30 seconds
+// demo buzzer stream: pressed once every 5 seconds
 async fn demo_buzzer_stream(device_actor_addr: Addr<DeviceActor>) {
     loop {
-        tokio::time::delay_for(Duration::from_secs(5)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
 
         device_actor_addr.do_send(BuzzerMessage {
             state: BuzzerState::Pressed,
         });
-        tokio::time::delay_for(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
         device_actor_addr.do_send(BuzzerMessage {
             state: BuzzerState::Released,
         });
@@ -78,7 +78,7 @@ async fn demo_sensor_stream(device_actor_addr: Addr<DeviceActor>) {
     let duration = 10.0;
 
     loop {
-        tokio::time::delay_for(Duration::from_millis(17)).await;
+        tokio::time::sleep(Duration::from_millis(17)).await;
 
         let now = Instant::now().duration_since(start_ts);
 
@@ -209,7 +209,7 @@ async fn wait_for_serial_device(vid: u16, pid: u16) -> String {
             }
             None => {
                 log::trace!("No serial device found with {:04x}:{:04x}", vid, pid);
-                tokio::time::delay_for(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
     }
@@ -227,7 +227,7 @@ async fn buzzer_loop(device_actor_addr: Addr<DeviceActor>) -> io::Result<()> {
             Ok(()) => log::info!("[buzzer]: stream ended"),
         }
 
-        tokio::time::delay_for(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
 
@@ -243,7 +243,7 @@ async fn sensor_loop(device_actor_addr: Addr<DeviceActor>) -> io::Result<()> {
             Ok(()) => log::info!("[sensor]: stream ended"),
         }
 
-        tokio::time::delay_for(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
 
@@ -287,14 +287,14 @@ async fn main() -> std::io::Result<()> {
 
                         async {
                             let response = actix_files::NamedFile::open("./web/index.html")?
-                                .into_response(&http_req)?;
+                                .into_response(&http_req);
                             Ok(ServiceResponse::new(http_req, response))
                         }
                     }),
             )
-            .service(web::resource("/").route(web::get().to(|| {
+            .service(web::resource("/").route(web::get().to(|| async {
                 HttpResponse::Found()
-                    .header("Location", "/fnwalk/")
+                    .append_header(("Location", "/fnwalk/"))
                     .finish()
             })))
     })

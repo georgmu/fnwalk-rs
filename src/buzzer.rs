@@ -9,7 +9,7 @@ use futures::stream::StreamExt;
 use futures::SinkExt;
 use futures_core::stream::Stream;
 
-use tokio_serial::Serial;
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tokio_util::codec::{Decoder, Encoder};
 
 pub const BUZZER_VID: u16 = 0x09ca;
@@ -30,7 +30,7 @@ impl Display for BuzzerState {
 struct BuzzerIO;
 
 pub struct Buzzer {
-    port: Serial,
+    port: SerialStream,
 }
 
 impl Decoder for BuzzerIO {
@@ -39,27 +39,24 @@ impl Decoder for BuzzerIO {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let newline = src.as_ref().iter().position(|b| *b == b'\r');
-        if let Some(n) = newline {
+
+        newline.map_or(Ok(None), |n| {
             let line = src.split_to(n);
             src.clear();
-            let state: BuzzerState;
-            if line == b"!00FE"[..] {
-                state = BuzzerState::Pressed;
+            let state: BuzzerState = if line == b"!00FE"[..] {
+                BuzzerState::Pressed
             } else {
-                state = BuzzerState::Released;
-            }
+                BuzzerState::Released
+            };
             Ok(Some(state))
-        } else {
-            Ok(None)
-        }
+        })
     }
 }
 
-impl Encoder for BuzzerIO {
-    type Item = String;
+impl Encoder<String> for BuzzerIO {
     type Error = io::Error;
 
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: String, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.put(item.as_bytes());
         dst.put_u8(b'\r');
         Ok(())
@@ -92,7 +89,7 @@ impl Buzzer {
                     }
                 }
 
-                tokio::time::delay_for(Duration::from_millis(50)).await;
+                tokio::time::sleep(Duration::from_millis(50)).await;
             }
         })
     }
@@ -102,12 +99,9 @@ pub fn open<P>(path: P) -> io::Result<Buzzer>
 where
     P: AsRef<Path>,
 {
-    let settings = tokio_serial::SerialPortSettings {
-        baud_rate: 38400,
-        ..Default::default()
-    };
+    let path = path.as_ref().to_str().unwrap().to_string();
 
-    let port = tokio_serial::Serial::from_path(path, &settings)?;
+    let port = tokio_serial::new(path, 38400).open_native_async()?;
 
     Ok(Buzzer { port })
 }

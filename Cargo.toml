@@ -3,6 +3,7 @@ name = "fnwalk"
 version = "0.1.0"
 authors = ["Georg Müller <georgmueller@gmx.net>"]
 edition = "2018"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,23 +15,23 @@ libudev = ["tokio-serial/libudev", "serialport/libudev"]
 env_logger = "*"
 log = "*"
 
-bytes = "0.5"
+bytes = "*"
 
 futures = "0.3.1"
 futures-util = "*"
 futures-core = "*"
 
-tokio = { version = "0.2.0", features = ["macros", "time"], default-features = false }
-tokio-util = { version = "0.2.0", features = ["codec"], default-features = false }
-tokio-serial = { version = "*", default-features = false }
-serialport = { version = "3.3.0", default-features = false }
+tokio = { version = "1", features = ["macros", "time", "rt", "rt-multi-thread"], default-features = false }
+tokio-util = { version = "0.7", features = ["codec"], default-features = false }
+tokio-serial = { version = "5.4.1" }
+serialport = { version = "4.0.0", default-features = false }
 
-actix = "*"
-actix-files = "*"
-actix-web = "3"
-actix-web-actors = "3"
+actix = "0.12.0"
+actix-files = "0.6"
+actix-web = "4"
+actix-web-actors = "4"
 
-actix-broker = "*"
+actix-broker = "0.4.1"
 
 async-stream = "*"
 

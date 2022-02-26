@@ -4,7 +4,8 @@ use std::{fmt::Display, pin::Pin};
 
 use bytes::{BufMut, BytesMut};
 use io::ErrorKind;
-use tokio_serial::Serial;
+
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tokio_util::codec::{Decoder, Encoder};
 
 use async_stream::try_stream;
@@ -17,7 +18,7 @@ pub const SENSOR_PID: u16 = 0x6001;
 struct SensorIO;
 
 pub struct Sensor {
-    port: Serial,
+    port: SerialStream,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -43,7 +44,7 @@ impl From<RawSensorData> for SensorData {
         // 343.2 m/s = 0.03432 cm/µs, divide by 2 since we only need one way
         let distance = raw_data.time2 * 3432 / 100_000 / 2;
 
-        SensorData { distance }
+        Self { distance }
     }
 }
 
@@ -90,11 +91,10 @@ impl Decoder for SensorIO {
     }
 }
 
-impl Encoder for SensorIO {
-    type Item = Vec<u8>;
+impl Encoder<Vec<u8>> for SensorIO {
     type Error = io::Error;
 
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Vec<u8>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.put(item.as_ref());
         dst.put_u8(b'\r');
         Ok(())
@@ -147,12 +147,9 @@ pub fn open<P>(path: P) -> io::Result<Sensor>
 where
     P: AsRef<Path>,
 {
-    let settings = tokio_serial::SerialPortSettings {
-        baud_rate: 38400,
-        ..Default::default()
-    };
+    let path = path.as_ref().to_str().unwrap().to_string();
 
-    let port = tokio_serial::Serial::from_path(path, &settings)?;
+    let port = tokio_serial::new(path, 38400).open_native_async()?;
 
     Ok(Sensor { port })
 }
